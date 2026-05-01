@@ -1,0 +1,95 @@
+name: Update MRS Rules
+  
+permissions: 
+    contents: write
+
+on:
+  schedule:
+    - cron: "2 0 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Mihomo (v1.19.19)
+        run: |
+          MIHOMO_VERSION="v1.19.19"
+          MIHOMO_FILE="mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
+          DOWNLOAD_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/${MIHOMO_FILE}"
+
+          echo "Downloading Mihomo from: $DOWNLOAD_URL"
+          wget -q "$DOWNLOAD_URL" -O mihomo.gz
+          gunzip mihomo.gz
+          chmod +x mihomo
+          sudo mv mihomo /usr/local/bin/mihomo
+
+          echo "Installed Mihomo version:"
+          mihomo -v
+
+      - name: Prepare folders
+        run: |
+          mkdir -p rules
+          mkdir -p mrs
+
+      - name: Download rule txt files
+        run: |
+          RULES=(
+            reject
+            icloud
+            apple
+            google
+            proxy
+            direct
+            private
+            gfw
+            greatfire
+            tld-not-cn
+            telegramcidr
+            cncidr
+            applications
+            lancidr
+          )
+          for r in "${RULES[@]}"; do
+            echo "Downloading $r.txt..."
+            wget -q -O rules/$r.txt https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/$r.txt
+            echo "✔️ Downloaded $r.txt"
+          done
+
+      - name: Convert txt → mrs
+        run: |
+          for f in rules/*.txt; do
+            name=$(basename "$f" .txt)
+            echo "Converting $name..."
+            if [ "$name" = "applications" ]; then
+              echo "Skipping applications (classical)"
+              continue
+            fi
+            if [ "$name" = "telegramcidr" ] || [ "$name" = "cncidr" ] || [ "$name" = "lancidr" ]; then
+              if ! mihomo convert-ruleset ipcidr yaml "$f" "mrs/$name.mrs"; then
+                echo "❌ Failed to convert $name"
+                head -n 20 "$f"
+                exit 8
+              fi
+              echo "✔️ Converted $name.mrs"
+              continue
+            fi
+            if ! mihomo convert-ruleset domain yaml "$f" "mrs/$name.mrs"; then
+              echo "❌ Failed to convert $name"
+              head -n 20 "$f"
+              exit 8
+            fi
+            echo "✔️ Converted $name.mrs"
+          done
+
+      - name: Commit & Push
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add .
+          git commit -m "Auto update MRS rules $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes"
+          git push
