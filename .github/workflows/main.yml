@@ -16,9 +16,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Mihomo (v1.19.19)
+      - name: Install Mihomo (v1.19.24)
         run: |
-          MIHOMO_VERSION="v1.19.19"
+          MIHOMO_VERSION="v1.19.24"
           MIHOMO_FILE="mihomo-linux-amd64-${MIHOMO_VERSION}.gz"
           DOWNLOAD_URL="https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/${MIHOMO_FILE}"
 
